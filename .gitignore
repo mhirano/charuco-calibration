@@ -1,5 +1,5 @@
 # All data should be manually sync-ed for a large project
-# /data/* 
+/data/* 
 
 # build directory
 /cmake-build-debug/*
