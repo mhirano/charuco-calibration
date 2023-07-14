@@ -146,6 +146,12 @@ struct ArUcoDetector {
 
 		cv::solvePnP(objPoints, imgPoints, K, D, rvec, tvec);
 	}
+
+    bool estimatePose(cv::Vec3d& rvec, cv::Vec3d& tvec){
+        bool valid = cv::aruco::estimatePoseCharucoBoard(charucoCorners, charucoIds, charucoboard, cameraMatrix, distCoeffs, rvec, tvec);
+        return valid;
+    }
+
 };
 
 struct ArUcoCalibrator {

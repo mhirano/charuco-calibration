@@ -9,12 +9,13 @@ int main(int argc, char **argv) {
      * 単眼キャリブレーション
      */
 
-    calibrator->calibrateMono("../data/calibImgs/monoImgs", "../data/calibImgs/resultMono");
+//    calibrator->calibrateMono("../data/avsleftcam", "../data/avsleftcam-result");
+    calibrator->estimateBoardPose("../data/avsleftcam", "../data/avsleftcam-result");
 
     /*
      * ステレオキャリブレーション
      */
-    calibrator->calibrateStereo("../data/calibImgs/stereoImgs", "../data/calibImgs/resultStereo");
+//    calibrator->calibrateStereo("../data/calibImgs/stereoImgs", "../data/calibImgs/resultStereo");
 
     return 0;
 }

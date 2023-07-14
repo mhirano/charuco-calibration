@@ -8,6 +8,32 @@
 
 namespace fs = std::filesystem;
 
+/*
+ * 保存用構造体
+ */
+struct MyData{
+    int id; cv::Vec3d rvec; cv::Vec3d tvec;
+    void write(cv::FileStorage& fs) const //Write serialization for this class
+    {
+        fs << "{" << "id" << id << "rvec" << rvec << "tvec" << tvec << "}";
+    }
+};
+
+//These write and read functions must be defined for the serialization in FileStorage to work
+static void write(cv::FileStorage& fs, const std::string&, const MyData& x)
+{
+    x.write(fs);
+}
+
+// This function will print our custom class to the console
+static std::ostream& operator<<(std::ostream& out, const MyData& m)
+{
+    out << "{ id = " << m.id << ", ";
+    out << "rvec = " << m.rvec << ", ";
+    out << "tvec = " << m.tvec << "}";
+    return out;
+}
+
 bool CharucoCalibrator::calibrateMono(std::string calibDataPathStr, std::string calibResultPathStr) {
 	/*
 	 * 0. パス設定
@@ -119,7 +145,7 @@ bool CharucoCalibrator::calibrateMono(std::string calibDataPathStr, std::string 
 
 	/*
 	 * キャリブレーション結果の保存
-	 */
+ */
     SPDLOG_INFO("Saving calibration results.");
     std::string externalCameraCalibrationResult = "MonocularCameraCalibrationResult.xml";
 	std::ostringstream os;
@@ -397,4 +423,120 @@ bool CharucoCalibrator::calibrateStereo(std::string calibDataPathStr, std::strin
 	SPDLOG_DEBUG("Stereo camera calibration completed.");
 
 	return true;
+}
+
+bool CharucoCalibrator::estimateBoardPose(std::string calibDataPathStr, std::string calibResultPathStr){
+	/**
+	 * 1. ボード画像たちの読み込み
+	 * 2. 内部パラメータの読み込み
+	 * 3. ボード画像たちからコーナー点検出＆Refine
+	 * 4. ボードの姿勢推定 (cv::aruco::estimatePoseCharucoBoard)
+	 * 5. 結果の保存
+	 */
+	/*
+	 * 0. パス設定
+	 */
+	std::filesystem::path calibrationDataDirectoryPath(calibDataPathStr);
+	std::filesystem::path calibrationResultDirectoryPath(calibResultPathStr);
+
+	/*
+     * 1. 画像読み込み
+     */
+	SPDLOG_INFO("Loading external camera images.");
+	std::vector<cv::Mat1b> imgs;
+	std::vector<int> idImgs;
+	std::vector<std::filesystem::path> paths;
+	for (const auto & file : std::filesystem::directory_iterator(calibrationDataDirectoryPath)){
+		std::string path = calibrationDataDirectoryPath.string() + "/" + file.path().filename().string(); // Make sure the delimiter is "/"
+		paths.emplace_back(std::filesystem::path(path));
+	}
+	std::sort(paths.begin(), paths.end());
+	for (auto i = paths.begin(), e = paths.end(); i != e; ++i) {
+		static int idL = 0;
+		std::smatch m;
+		std::string s = i->string();
+		if(i->string().find("external_left") != std::string::npos) { // 画像のプリフィックスを指定．必要に応じて要変更．
+			cv::Mat1b img = cv::imread(i->string(), 0);
+			imgs.push_back(img);
+			if ( std::regex_match(s, m, std::regex(R"(.*/external_left_(.*).png)") )) {
+				idImgs.push_back(std::stoi(m[1]));
+			}
+			SPDLOG_DEBUG("Image: {}", s);
+		}
+	}
+	SPDLOG_INFO("Loaded images.");
+
+    /*
+     * 推定結果保存用ストリームの準備
+     */
+    std::string externalCameraCalibrationResult = "poses.xml";
+    std::ostringstream os;
+    os.clear(); os.str("");
+    os << calibrationResultDirectoryPath.string() + "/" + externalCameraCalibrationResult;
+    cv::FileStorage fs(os.str(), cv::FileStorage::WRITE);
+    if (!fs.isOpened()) {
+        SPDLOG_ERROR("Pose estimation result file {} can not be opened.");
+        return false;
+    }
+
+
+    /*
+     * 2.
+     */
+
+    ArUcoCalibrator arUcoCalibratorLeft(imgs[0].cols, imgs[0].rows);
+	ArUcoDetector arUcoDetectorLeft(9,12,100,60,10,100);
+	arUcoCalibratorLeft.charucoboard = arUcoDetectorLeft.charucoboard;
+	arUcoCalibratorLeft.board = arUcoDetectorLeft.board;
+
+	SPDLOG_INFO("Detecting ArUco.");
+	for (int i = 0; i < (int)imgs.size(); i++) {
+		SPDLOG_DEBUG("Detecting ArUco No.{}", idImgs[i]);
+
+		cv::Mat markerAndCornerLeft = imgs[i].clone();
+        cv::Mat axisImg = imgs[i].clone();
+
+		/* 左画像からArUcoマーカを検知 */
+		arUcoDetectorLeft.initClear();
+		float fx = 2.597878086937441e+03, fy = 2.597608077430456e+03;
+		float cx = 2.151484663510314e+02, cy = 2.165581942395036e+02;
+		float k1 = -0.803435516039213, k2 = 86.400017750811530, k3 = -4.648338417345626e+03;
+		float p1 = 0.001105847484596, p2 = 0.004106860666786;
+		arUcoDetectorLeft.cameraMatrix = (cv::Mat_<float>(3,3) << fx, 0, cx, 0, fy, cy, 0, 0, 1); // [fx, 0, cx; 0, fy, cy; 0 0 1]
+		arUcoDetectorLeft.distCoeffs = (cv::Mat_<float>(1,5) << k1, k2, p1, p2, k3); // [fx, 0, cx; 0, fy, cy; 0 0 1]
+		arUcoDetectorLeft.detectMarkers(imgs[i]);
+
+
+        cv::Vec3d rvec, tvec;
+        if( arUcoDetectorLeft.estimatePose(rvec, tvec) ){
+            // draw axis
+            cv::aruco::drawDetectedCornersCharuco(
+                    markerAndCornerLeft, arUcoDetectorLeft.charucoCorners, arUcoDetectorLeft.charucoIds, cv::Scalar(255,0,0)
+                    );
+            cv::aruco::drawDetectedMarkers(
+                    markerAndCornerLeft, arUcoDetectorLeft.markerCorners, arUcoDetectorLeft.markerIds
+                    );
+            cv::aruco::drawAxis(axisImg, arUcoDetectorLeft.cameraMatrix, arUcoDetectorLeft.distCoeffs, rvec, tvec, 0.1f);
+
+            std::cout << "tvec:" << tvec<< std::endl;
+            std::cout << "rvec:" << rvec<< std::endl;
+            cv::Mat rot;
+            cv::Rodrigues(rvec, rot);
+            std::cout << "rmat:" << rot << std::endl;
+
+//            cv::imshow("marker_and_corner", markerAndCornerLeft);
+//            cv::imshow("axis", axisImg);
+
+            MyData m{idImgs[i], rvec, tvec};
+
+            // 単眼
+            fs << "data" << m;
+        }
+	}
+
+    fs.release();
+
+    SPDLOG_INFO("Pose estimation completed.");
+
+    return true;
 }

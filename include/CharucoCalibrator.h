@@ -19,4 +19,6 @@ struct CharucoCalibrator{
      */
     bool calibrateStereo(std::string calibDataPathStr, std::string calibResultPathStr);
 
+    bool estimateBoardPose(std::string calibDataPathStr, std::string calibResultPathStr);
+
 };

@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.5)
 
 # IF OpenCV_DIR IS NOT DECLARED IN YOUR ENVIRONMENT, SET ENVIRONMENT VARIABLE AS BELOW
 
-set(OpenCV_DIR /Users/mhirano/opencv-4.6.0/build)
+set(OpenCV_DIR /Users/mhirano/opencv-4.5.3/build)
 project( CHARUCO-CALIB CXX )
 find_package( OpenCV REQUIRED )
 
