@@ -494,44 +494,60 @@ bool CharucoCalibrator::estimateBoardPose(std::string calibDataPathStr, std::str
 		SPDLOG_DEBUG("Detecting ArUco No.{}", idImgs[i]);
 
 		cv::Mat markerAndCornerLeft = imgs[i].clone();
-        cv::Mat axisImg = imgs[i].clone();
+//        cv::Mat axisImg = imgs[i].clone();
+//        cv::cvtColor(axisImg, axisImg, cv::COLOR_GRAY2BGR);
 
 		/* 左画像からArUcoマーカを検知 */
 		arUcoDetectorLeft.initClear();
-		float fx = 2.597878086937441e+03, fy = 2.597608077430456e+03;
-		float cx = 2.151484663510314e+02, cy = 2.165581942395036e+02;
-		float k1 = -0.803435516039213, k2 = 86.400017750811530, k3 = -4.648338417345626e+03;
-		float p1 = 0.001105847484596, p2 = 0.004106860666786;
+        // avs
+		float fx = 2.597878086937441e+03, fy = 2.597608077430456e+03, cx = 2.151484663510314e+02, cy = 2.165581942395036e+02;
+        float k1 = -0.803435516039213, k2 = 86.400017750811530, k3 = -4.648338417345626e+03; // 半径, radial
+		float p1 = 0.001105847484596, p2 = 0.004106860666786; // 円周, tangential
+        // falcon
+//        float fx = 1.8793735543302303e+03, fy = 1.8044510334566894e+03, cx = 1.4324188639493905e+03, cy = 9.1631672262384984e+02;
+//        float k1 = 1.2565438183754463e-01, k2 = -2.2261018793922411e+00, k3 = 1.5935431887100768e+00; // 半径, radial
+//        float p1 =  -6.1700664086824696e-02, p2 = -1.9218289296846904e-02; // 円周, tangential
+
 		arUcoDetectorLeft.cameraMatrix = (cv::Mat_<float>(3,3) << fx, 0, cx, 0, fy, cy, 0, 0, 1); // [fx, 0, cx; 0, fy, cy; 0 0 1]
 		arUcoDetectorLeft.distCoeffs = (cv::Mat_<float>(1,5) << k1, k2, p1, p2, k3); // [fx, 0, cx; 0, fy, cy; 0 0 1]
 		arUcoDetectorLeft.detectMarkers(imgs[i]);
 
 
         cv::Vec3d rvec, tvec;
-        if( arUcoDetectorLeft.estimatePose(rvec, tvec) ){
-            // draw axis
-            cv::aruco::drawDetectedCornersCharuco(
-                    markerAndCornerLeft, arUcoDetectorLeft.charucoCorners, arUcoDetectorLeft.charucoIds, cv::Scalar(255,0,0)
-                    );
-            cv::aruco::drawDetectedMarkers(
-                    markerAndCornerLeft, arUcoDetectorLeft.markerCorners, arUcoDetectorLeft.markerIds
-                    );
-            cv::aruco::drawAxis(axisImg, arUcoDetectorLeft.cameraMatrix, arUcoDetectorLeft.distCoeffs, rvec, tvec, 0.1f);
+        {
+            arUcoDetectorLeft.estPatternRT(rvec, tvec);
+            std::cout << "tvec(pnp):" << tvec<< std::endl;
+            std::cout << "rvec(pnp):" << rvec<< std::endl;
+			cv::Mat axisImg = imgs[i].clone();
+			cv::cvtColor(axisImg, axisImg, cv::COLOR_GRAY2BGR);
+			cv::aruco::drawAxis(axisImg, arUcoDetectorLeft.cameraMatrix, arUcoDetectorLeft.distCoeffs, rvec, tvec, 100.0f);
+			cv::imshow("axis(pnp)", axisImg);
+		}
+		if( arUcoDetectorLeft.estimatePose(rvec, tvec) ){
+			cv::Mat axisImg = imgs[i].clone();
+			cv::cvtColor(axisImg, axisImg, cv::COLOR_GRAY2BGR);
+			// draw axis
+            cv::aruco::drawDetectedCornersCharuco( markerAndCornerLeft, arUcoDetectorLeft.charucoCorners, arUcoDetectorLeft.charucoIds, cv::Scalar(255,0,0) );
+            cv::aruco::drawDetectedMarkers( markerAndCornerLeft, arUcoDetectorLeft.markerCorners, arUcoDetectorLeft.markerIds );
+            cv::aruco::drawAxis(axisImg, arUcoDetectorLeft.cameraMatrix, arUcoDetectorLeft.distCoeffs, rvec, tvec, 100.0f);
 
             std::cout << "tvec:" << tvec<< std::endl;
             std::cout << "rvec:" << rvec<< std::endl;
             cv::Mat rot;
             cv::Rodrigues(rvec, rot);
             std::cout << "rmat:" << rot << std::endl;
+			std::cout << "i: " << i << std::endl;
 
-//            cv::imshow("marker_and_corner", markerAndCornerLeft);
-//            cv::imshow("axis", axisImg);
+            cv::imshow("marker_and_corner", markerAndCornerLeft);
+            cv::imshow("axis(ocv)", axisImg);
+            cv::waitKey(0);
 
             MyData m{idImgs[i], rvec, tvec};
 
             // 単眼
             fs << "data" << m;
         }
+
 	}
 
     fs.release();

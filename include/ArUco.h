@@ -72,9 +72,11 @@ struct ArUcoDetector {
 		markerCorners.clear();
 		rejectedMarkers.clear();
 		charucoCorners.clear();
+//        markerCornersForShow.clear();
+//        charucoCornersForShow.clear();
 	}
 	void detectMarkers(cv::Mat img) {
-		detectorParams->cornerRefinementMethod = cv::aruco::CornerRefineMethod::CORNER_REFINE_SUBPIX;
+		detectorParams->cornerRefinementMethod = cv::aruco::CornerRefineMethod::CORNER_REFINE_NONE;
 
 		/** 1. ArUcoマーカー検出 */
 		cv::aruco::detectMarkers(img, dictionary, markerCorners, markerIds, detectorParams, rejectedMarkers);
@@ -129,22 +131,51 @@ struct ArUcoDetector {
 			cv::aruco::drawDetectedCornersCharuco(img, charucoCornersShow, charucoIds); // Pass 'charucoIds' if ids are needed.
 	}
 
-	void estPatternRT(std::vector<std::vector<cv::Point3d>> markerPoints,
-		cv::Mat1d K, cv::Mat1d D, cv::Mat1d &rvec, cv::Mat1d &tvec) {
+	void estPatternRT(cv::Vec3d& rvec, cv::Vec3d& tvec) {
+//		std::vector<cv::Point3d> objPoints;
+//		std::vector<cv::Point2d> imgPoints;
+//        assert(charucoIds.size() == charucoCorners.size());
+//        assert(!charucoIds.empty());
+//
+//        auto cornerObjPoint = [&](int id)->cv::Point3d{
+//            int x = (id % 8);
+//            int y = (int) floor (id / 8.0);
+//            return cv::Point3d(x * squareLength, y * squareLength, 0.0);
+//        };
+//
+//		for (int k = 0; k < charucoIds.size(); k++) {
+//			int id = charucoIds[k];
+//
+//            objPoints.push_back(cornerObjPoint(id));
+//            imgPoints.push_back(charucoCorners[k]);
+//		}
+//
+//		if (objPoints.size() < 4) {
+//            SPDLOG_WARN("Not sufficient detected corners. Skiping pose estimation.");
+//            return;
+//        } else {
+//    		cv::solvePnP(objPoints, imgPoints, cameraMatrix, distCoeffs, rvec, tvec);
+//        }
+
 		std::vector<cv::Point3d> objPoints;
 		std::vector<cv::Point2d> imgPoints;
-		for (int k = 0; k < markerIds.size(); k++) {
-			int id = markerIds[k];
+		cv::aruco::getBoardObjectAndImagePoints(charucoboard, markerCorners, markerIds, objPoints, imgPoints);
+   		cv::solvePnP(objPoints, imgPoints, cameraMatrix, distCoeffs, rvec, tvec);
 
-			for (int l = 0; l < markerPoints[id].size(); l++) {
-				objPoints.push_back(markerPoints[id][l]);
-				imgPoints.push_back(markerCorners[k][l]);
-			}
-		}
+
+//        for (int k = 0; k < markerIds.size(); k++) {
+//            int id = markerIds[k];
+//
+//            for (int l = 0; l < markerPoints[id].size(); l++) {
+//                objPoints.push_back(markerPoints[id][l]);
+//                imgPoints.push_back(markerCorners[k][l]);
+//            }
+//        }
+
 		// マーカーを検出できなかった画像はスキップ
-		if (objPoints.size() < 3) return;
+//		if (objPoints.size() < 3) return;
 
-		cv::solvePnP(objPoints, imgPoints, K, D, rvec, tvec);
+//		cv::solvePnP(objPoints, imgPoints, K, D, rvec, tvec);
 	}
 
     bool estimatePose(cv::Vec3d& rvec, cv::Vec3d& tvec){

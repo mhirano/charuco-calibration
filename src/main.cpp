@@ -11,6 +11,7 @@ int main(int argc, char **argv) {
 
 //    calibrator->calibrateMono("../data/avsleftcam", "../data/avsleftcam-result");
     calibrator->estimateBoardPose("../data/avsleftcam", "../data/avsleftcam-result");
+//    calibrator->estimateBoardPose("../data/monoImgs", "../data/monoImgs-result");
 
     /*
      * ステレオキャリブレーション
