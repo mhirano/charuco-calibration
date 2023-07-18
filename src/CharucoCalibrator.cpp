@@ -540,7 +540,7 @@ bool CharucoCalibrator::estimateBoardPose(std::string calibDataPathStr, std::str
 
             cv::imshow("marker_and_corner", markerAndCornerLeft);
             cv::imshow("axis(ocv)", axisImg);
-            cv::waitKey(0);
+//            cv::waitKey(0);
 
             MyData m{idImgs[i], rvec, tvec};
 
